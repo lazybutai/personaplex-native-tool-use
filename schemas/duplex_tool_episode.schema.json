@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PersonaPlex-Agent duplex tool episode",
+  "type": "object",
+  "required": [
+    "episode_id",
+    "sample_rate",
+    "frame_rate_hz",
+    "user_audio",
+    "assistant_audio",
+    "calls",
+    "action_packets",
+    "observations",
+    "environment_packets"
+  ],
+  "properties": {
+    "episode_id": {"type": "string", "minLength": 1},
+    "sample_rate": {"const": 24000},
+    "frame_rate_hz": {"const": 12.5},
+    "user_audio": {"type": "string", "minLength": 1},
+    "assistant_audio": {"type": "string", "minLength": 1},
+    "calls": {"type": "array"},
+    "action_packets": {"type": "array"},
+    "observations": {"type": "array"},
+    "environment_packets": {"type": "array"}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,9 @@
+.venv/
+/models/
+/checkpoints/
+/artifacts/
+/fork/personaplex-agent-moshi/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage

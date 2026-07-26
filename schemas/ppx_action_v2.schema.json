@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://personaplex-agent.local/schemas/ppx_action_v2.schema.json",
+  "title": "PersonaPlex-Agent fixed V2 action/executor contract",
+  "description": "Audit/replay schema for the neural model's bounded action packets and the trusted executor's later observations. The model-visible lanes remain fixed 0..255 token IDs with PAD=-1 represented only in materialized arrays.",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "manifest_fingerprint",
+    "tool_catalog_hash",
+    "frame_ms",
+    "action_slots_per_frame",
+    "environment_slots_per_frame",
+    "calls",
+    "events"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "protocol_version": { "const": "ppx-action-v2.0.0" },
+    "manifest_fingerprint": {
+      "const": "33a8f32345169946151c907e93bd2bfa54088c83003da2d1e7b4844b547475d6"
+    },
+    "tool_catalog_hash": {
+      "const": "9c3b3f2c280d14a70f8962de248666df4df44ace29d246f2ce1aa6bb43b50b31"
+    },
+    "frame_ms": { "const": 80 },
+    "action_slots_per_frame": { "const": 5 },
+    "environment_slots_per_frame": { "const": 5 },
+    "calls": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/call" }
+    },
+    "events": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/event" }
+    }
+  },
+  "$defs": {
+    "microPosition": {
+      "type": "object",
+      "required": ["frame", "micro"],
+      "additionalProperties": false,
+      "properties": {
+        "frame": { "type": "integer", "minimum": 0 },
+        "micro": { "type": "integer", "minimum": 0, "maximum": 4 }
+      }
+    },
+    "weatherCall": {
+      "type": "object",
+      "required": ["tool_name", "arguments"],
+      "additionalProperties": false,
+      "properties": {
+        "tool_name": { "const": "weather.lookup" },
+        "arguments": {
+          "type": "object",
+          "required": ["city"],
+          "additionalProperties": false,
+          "properties": {
+            "city": { "type": "string", "pattern": "^CITY_([0-9]|[12][0-9]|3[01])$" }
+          }
+        }
+      }
+    },
+    "timerCall": {
+      "type": "object",
+      "required": ["tool_name", "arguments"],
+      "additionalProperties": false,
+      "properties": {
+        "tool_name": { "const": "timer.create" },
+        "arguments": {
+          "type": "object",
+          "required": ["minutes"],
+          "additionalProperties": false,
+          "properties": {
+            "minutes": { "type": "string", "pattern": "^MIN_([1-9]|[1-5][0-9]|60)$" }
+          }
+        }
+      }
+    },
+    "temperatureCall": {
+      "type": "object",
+      "required": ["tool_name", "arguments"],
+      "additionalProperties": false,
+      "properties": {
+        "tool_name": { "const": "home.set_temperature" },
+        "arguments": {
+          "type": "object",
+          "required": ["room", "temperature_c"],
+          "additionalProperties": false,
+          "properties": {
+            "room": { "type": "string", "pattern": "^ROOM_[0-7]$" },
+            "temperature_c": { "type": "string", "pattern": "^TEMP_C_([1-3][0-9]|40)$" }
+          }
+        }
+      }
+    },
+    "call": {
+      "type": "object",
+      "required": [
+        "call_uuid",
+        "lease",
+        "ref",
+        "packet_start_frame",
+        "issued_position",
+        "token_ids",
+        "tool"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "call_uuid": { "type": "string", "minLength": 1 },
+        "lease": { "type": "integer", "minimum": 1 },
+        "ref": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "packet_start_frame": { "type": "integer", "minimum": 0, "multipleOf": 2 },
+        "issued_position": { "$ref": "#/$defs/microPosition" },
+        "token_ids": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 10,
+          "items": { "type": "integer", "minimum": 0, "maximum": 255 }
+        },
+        "tool": {
+          "oneOf": [
+            { "$ref": "#/$defs/weatherCall" },
+            { "$ref": "#/$defs/timerCall" },
+            { "$ref": "#/$defs/temperatureCall" }
+          ]
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "required": [
+        "event_id",
+        "event_seq",
+        "call_uuid",
+        "lease",
+        "ref",
+        "tool_name",
+        "kind",
+        "issued_frame",
+        "available_frame",
+        "source",
+        "payload_tokens"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "event_id": { "type": "string", "minLength": 1 },
+        "event_seq": { "type": "integer", "minimum": 0 },
+        "call_uuid": { "type": "string", "minLength": 1 },
+        "lease": { "type": "integer", "minimum": 1 },
+        "ref": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "tool_name": {
+          "enum": ["weather.lookup", "timer.create", "home.set_temperature"]
+        },
+        "kind": {
+          "enum": ["PENDING", "OK", "ERROR", "TIMEOUT", "CANCELLED", "STALE"]
+        },
+        "issued_frame": { "type": "integer", "minimum": 0 },
+        "available_frame": { "type": "integer", "minimum": 1 },
+        "source": { "const": "tool_executor" },
+        "payload_tokens": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "format": "personaplex-agent-lanes-v1",
+  "file": "micro-head-v169-v151-dual-state-margin05.safetensors",
+  "size_bytes": 327136442,
+  "sha256": "f9c5db254f8fea477155a9233b063b03248605c07e95efb987d88bc3626cdcba",
+  "base_model": "nvidia/personaplex-7b-v1",
+  "source_repository": "https://github.com/lazybutai/personaplex-native-tool-use",
+  "verified_proof": {
+    "mode": "controlled_causal_wav_replay",
+    "seed": 20260709,
+    "frames": 46,
+    "realtime_factor_windows_eager": 12.991,
+    "call_count": 1,
+    "tool_name": "timer.create",
+    "arguments": {
+      "minutes": "MIN_2"
+    },
+    "issued_frame": 20,
+    "scheduled_seconds": 120.0,
+    "terminal_result": "OK",
+    "result_visible_frame": 25,
+    "generated_assistant_text": "Sure, set a 2 minutes.",
+    "assistant_audio_rms": 0.016331,
+    "assistant_audio_peak": 0.442787
+  }
+}

@@ -1,0 +1,519 @@
+{
+  "catalog_version": "ppx-acceptance-scenarios-v2.0.0",
+  "protocol_version": "ppx-action-v2.0.0",
+  "manifest_fingerprint": "33a8f32345169946151c907e93bd2bfa54088c83003da2d1e7b4844b547475d6",
+  "tool_catalog_hash": "9c3b3f2c280d14a70f8962de248666df4df44ace29d246f2ce1aa6bb43b50b31",
+  "scenario_count": 30,
+  "scenarios": [
+    {
+      "id": "ASV2-001",
+      "category": "no_tool",
+      "user_intent": "Say hello and ask how the assistant is doing.",
+      "expected_action": null,
+      "tool_args": [],
+      "event_sequence": [],
+      "timing_relation": "No executor observation is scheduled.",
+      "expected_spoken_behavior": "Reply naturally and promptly without inventing an action.",
+      "forbidden_behavior": ["Emit CALL_BEGIN", "Claim a tool was used"],
+      "measurable_assertions": [
+        {"metric": "dispatch_count", "operator": "==", "expected": 0},
+        {"metric": "environment_token_count", "operator": "==", "expected": 0}
+      ]
+    },
+    {
+      "id": "ASV2-002",
+      "category": "no_tool",
+      "user_intent": "Ask a conversational clarification: 'What did you mean by that?'.",
+      "expected_action": null,
+      "tool_args": [],
+      "event_sequence": [],
+      "timing_relation": "No executor observation is scheduled.",
+      "expected_spoken_behavior": "Answer from dialogue context and ask a concise follow-up if needed.",
+      "forbidden_behavior": ["Call a tool for ordinary dialogue", "Hallucinate a result"],
+      "measurable_assertions": [
+        {"metric": "dispatch_count", "operator": "==", "expected": 0},
+        {"metric": "assistant_turn_started", "operator": "<=", "expected": "300ms"}
+      ]
+    },
+    {
+      "id": "ASV2-003",
+      "category": "no_tool",
+      "user_intent": "Express frustration about a difficult day.",
+      "expected_action": null,
+      "tool_args": [],
+      "event_sequence": [],
+      "timing_relation": "No executor observation is scheduled.",
+      "expected_spoken_behavior": "Give an empathetic spoken response while remaining in the duplex conversation.",
+      "forbidden_behavior": ["Treat emotion as a tool request", "Go silent after user speech ends"],
+      "measurable_assertions": [
+        {"metric": "dispatch_count", "operator": "==", "expected": 0},
+        {"metric": "duplex_context_preserved", "operator": "==", "expected": true}
+      ]
+    },
+    {
+      "id": "ASV2-004",
+      "category": "weather",
+      "user_intent": "Ask for the weather in the symbolic city represented by CITY_7.",
+      "expected_action": {"kind": "CALL", "tool": "weather.lookup", "ref": "REF_0", "arguments": {"city": "CITY_7"}},
+      "tool_args": [{"tool": "weather.lookup", "arguments": {"city": "CITY_7"}}],
+      "event_sequence": [
+        {"kind": "PENDING", "ref": "REF_0", "relation": "available_at_call_end_plus_1"},
+        {"kind": "OK", "ref": "REF_0", "payload_tokens": ["FORECAST_03", "TEMP_C_21"], "relation": "visible_after_final_obs_end"}
+      ],
+      "timing_relation": "Dispatch occurs only at CALL_END; PENDING is no earlier than the next frame; factual weather wording begins at the OK visible_frame.",
+      "expected_spoken_behavior": "Acknowledge the lookup, then state only the returned symbolic forecast and temperature after visibility.",
+      "forbidden_behavior": ["Speak FORECAST_03 before OK visible_frame", "Reuse REF_0 before terminal visibility"],
+      "measurable_assertions": [
+        {"metric": "call_dispatch_frame", "operator": "==", "expected": "CALL_END.frame"},
+        {"metric": "result_grounded_segment_start", "operator": ">=", "expected": "OK.visible_frame"}
+      ]
+    },
+    {
+      "id": "ASV2-005",
+      "category": "weather",
+      "user_intent": "Ask for CITY_12 weather while the assistant gives a brief acknowledgement.",
+      "expected_action": {"kind": "CALL", "tool": "weather.lookup", "ref": "REF_1", "arguments": {"city": "CITY_12"}},
+      "tool_args": [{"tool": "weather.lookup", "arguments": {"city": "CITY_12"}}],
+      "event_sequence": [
+        {"kind": "PENDING", "ref": "REF_1", "relation": "available_at_call_end_plus_1"},
+        {"kind": "OK", "ref": "REF_1", "payload_tokens": ["FORECAST_11", "TEMP_C_18"], "relation": "arrives_during_acknowledgement_and_is_visible_after_obs_end"}
+      ],
+      "timing_relation": "The acknowledgement may overlap the waiting period; result content may change speech only at OK injected_end.frame + 1.",
+      "expected_spoken_behavior": "Continue the short acknowledgement naturally, then pivot to the returned weather once it is visible.",
+      "forbidden_behavior": ["Restart the whole utterance on result arrival", "Leak result content during the acknowledgement before visibility"],
+      "measurable_assertions": [
+        {"metric": "acknowledgement_continuity", "operator": "==", "expected": true},
+        {"metric": "result_claim_frame", "operator": ">=", "expected": "OK.visible_frame"}
+      ]
+    },
+    {
+      "id": "ASV2-006",
+      "category": "weather",
+      "user_intent": "Ask for CITY_4 weather, then barge in with 'never mind'.",
+      "expected_action": {"kind": "SEQUENCE", "actions": [{"kind": "CALL", "tool": "weather.lookup", "ref": "REF_2", "arguments": {"city": "CITY_4"}}, {"kind": "INTERRUPT"}, {"kind": "CANCEL", "ref": "REF_2"}]},
+      "tool_args": [{"tool": "weather.lookup", "arguments": {"city": "CITY_4"}}],
+      "event_sequence": [
+        {"kind": "PENDING", "ref": "REF_2", "relation": "available_at_call_end_plus_1"},
+        {"kind": "CANCELLED", "ref": "REF_2", "relation": "terminal_after_cancel_action_end"}
+      ],
+      "timing_relation": "User barge-in interrupts speech immediately; REF_2 remains leased until CANCELLED OBS_END is visible.",
+      "expected_spoken_behavior": "Stop the acknowledgement, honor 'never mind', and do not later volunteer weather.",
+      "forbidden_behavior": ["Continue speaking over the user", "Speak a late weather result after cancellation"],
+      "measurable_assertions": [
+        {"metric": "speech_stop_after_barge_in", "operator": "<=", "expected": "1 frame"},
+        {"metric": "weather_claim_count_after_cancel", "operator": "==", "expected": 0}
+      ]
+    },
+    {
+      "id": "ASV2-007",
+      "category": "timer",
+      "user_intent": "Create a three-minute timer.",
+      "expected_action": {"kind": "CALL", "tool": "timer.create", "ref": "REF_0", "arguments": {"minutes": "MIN_3"}},
+      "tool_args": [{"tool": "timer.create", "arguments": {"minutes": "MIN_3"}}],
+      "event_sequence": [
+        {"kind": "PENDING", "ref": "REF_0", "relation": "available_at_call_end_plus_1"},
+        {"kind": "OK", "ref": "REF_0", "payload_tokens": ["ENUM_0"], "relation": "visible_after_final_obs_end"}
+      ],
+      "timing_relation": "The timer-created claim is delayed until ENUM_0 becomes visible.",
+      "expected_spoken_behavior": "Briefly acknowledge work, then confirm timer creation after the terminal result.",
+      "forbidden_behavior": ["Confirm timer creation at CALL_BEGIN", "Emit unbounded timer JSON"],
+      "measurable_assertions": [
+        {"metric": "action_argument_token", "operator": "==", "expected": "MIN_3"},
+        {"metric": "timer_confirmation_frame", "operator": ">=", "expected": "OK.visible_frame"}
+      ]
+    },
+    {
+      "id": "ASV2-008",
+      "category": "timer",
+      "user_intent": "Create a fifteen-minute timer with a multi-frame executor delay.",
+      "expected_action": {"kind": "CALL", "tool": "timer.create", "ref": "REF_1", "arguments": {"minutes": "MIN_15"}},
+      "tool_args": [{"tool": "timer.create", "arguments": {"minutes": "MIN_15"}}],
+      "event_sequence": [
+        {"kind": "PENDING", "ref": "REF_1", "relation": "available_at_call_end_plus_1"},
+        {"kind": "OK", "ref": "REF_1", "payload_tokens": ["ENUM_0"], "relation": "available_after_3_frames_then_visible_after_obs_end"}
+      ],
+      "timing_relation": "No terminal timer statement is generated during the three-frame pending window.",
+      "expected_spoken_behavior": "Use a natural waiting acknowledgement without fabricating completion.",
+      "forbidden_behavior": ["Say the timer exists while only PENDING is visible", "Drop the conversation during latency"],
+      "measurable_assertions": [
+        {"metric": "terminal_claim_before_result", "operator": "==", "expected": false},
+        {"metric": "pending_window_frames", "operator": "==", "expected": 3}
+      ]
+    },
+    {
+      "id": "ASV2-009",
+      "category": "timer",
+      "user_intent": "Create a ten-minute timer when the executor times out.",
+      "expected_action": {"kind": "CALL", "tool": "timer.create", "ref": "REF_2", "arguments": {"minutes": "MIN_10"}},
+      "tool_args": [{"tool": "timer.create", "arguments": {"minutes": "MIN_10"}}],
+      "event_sequence": [
+        {"kind": "PENDING", "ref": "REF_2", "relation": "available_at_call_end_plus_1"},
+        {"kind": "TIMEOUT", "ref": "REF_2", "relation": "visible_after_final_obs_end"}
+      ],
+      "timing_relation": "TIMEOUT is a terminal event and frees REF_2 only at visible_frame.",
+      "expected_spoken_behavior": "Explain that the timer request did not complete and offer to retry.",
+      "forbidden_behavior": ["Claim the timer was created", "Reuse REF_2 before TIMEOUT visible_frame"],
+      "measurable_assertions": [
+        {"metric": "terminal_status", "operator": "==", "expected": "TIMEOUT"},
+        {"metric": "ref_release_frame", "operator": "==", "expected": "TIMEOUT.visible_frame"}
+      ]
+    },
+    {
+      "id": "ASV2-010",
+      "category": "timer",
+      "user_intent": "Create a twenty-minute timer, then cancel it before completion.",
+      "expected_action": {"kind": "SEQUENCE", "actions": [{"kind": "CALL", "tool": "timer.create", "ref": "REF_3", "arguments": {"minutes": "MIN_20"}}, {"kind": "CANCEL", "ref": "REF_3"}]},
+      "tool_args": [{"tool": "timer.create", "arguments": {"minutes": "MIN_20"}}],
+      "event_sequence": [
+        {"kind": "PENDING", "ref": "REF_3", "relation": "available_at_call_end_plus_1"},
+        {"kind": "CANCELLED", "ref": "REF_3", "relation": "terminal_after_cancel_action_end"}
+      ],
+      "timing_relation": "CANCEL is exactly CANCEL REF_3 ACTION_END; terminal cancellation is required before release.",
+      "expected_spoken_behavior": "Acknowledge the cancellation rather than timer creation.",
+      "forbidden_behavior": ["Dispatch a second timer call for the cancel", "Confirm a canceled timer as active"],
+      "measurable_assertions": [
+        {"metric": "cancel_packet_shape", "operator": "==", "expected": ["CANCEL", "REF_3", "ACTION_END"]},
+        {"metric": "active_ref_after_cancel_visible", "operator": "==", "expected": false}
+      ]
+    },
+    {
+      "id": "ASV2-011",
+      "category": "timer",
+      "user_intent": "Cancel an in-flight timer and receive a late stale success from the old lease.",
+      "expected_action": {"kind": "SEQUENCE", "actions": [{"kind": "CALL", "tool": "timer.create", "ref": "REF_0", "arguments": {"minutes": "MIN_7"}}, {"kind": "CANCEL", "ref": "REF_0"}]},
+      "tool_args": [{"tool": "timer.create", "arguments": {"minutes": "MIN_7"}}],
+      "event_sequence": [
+        {"kind": "CANCELLED", "ref": "REF_0", "relation": "visible_before_ref_reuse"},
+        {"kind": "STALE", "ref": "REF_0", "relation": "old_uuid_or_lease_rejected_before_injection", "injected": false}
+      ],
+      "timing_relation": "The stale old lease must not enter the environment lane, even after a future reuse of REF_0.",
+      "expected_spoken_behavior": "Never report the late old timer as successfully created.",
+      "forbidden_behavior": ["Inject old-lease ENUM_0", "Change speech from a stale event"],
+      "measurable_assertions": [
+        {"metric": "stale_event_environment_tokens", "operator": "==", "expected": 0},
+        {"metric": "old_lease_result_claim_count", "operator": "==", "expected": 0}
+      ]
+    },
+    {
+      "id": "ASV2-012",
+      "category": "home",
+      "user_intent": "Set ROOM_2 to TEMP_C_21.",
+      "expected_action": {"kind": "CALL", "tool": "home.set_temperature", "ref": "REF_1", "arguments": {"room": "ROOM_2", "temperature_c": "TEMP_C_21"}},
+      "tool_args": [{"tool": "home.set_temperature", "arguments": {"room": "ROOM_2", "temperature_c": "TEMP_C_21"}}],
+      "event_sequence": [
+        {"kind": "PENDING", "ref": "REF_1", "relation": "available_at_call_end_plus_1"},
+        {"kind": "OK", "ref": "REF_1", "payload_tokens": ["ENUM_1"], "relation": "visible_after_final_obs_end"}
+      ],
+      "timing_relation": "The six-token call ends at second-frame micro-slot zero; dispatch uses that CALL_END position.",
+      "expected_spoken_behavior": "Confirm the room and target temperature only after the home result is visible.",
+      "forbidden_behavior": ["Swap positional room and temperature arguments", "Confirm before ENUM_1"],
+      "measurable_assertions": [
+        {"metric": "call_end_position", "operator": "==", "expected": {"frame_offset": 1, "micro": 0}},
+        {"metric": "action_argument_order", "operator": "==", "expected": ["ROOM_2", "TEMP_C_21"]}
+      ]
+    },
+    {
+      "id": "ASV2-013",
+      "category": "permission_confirmation",
+      "user_intent": "Set ROOM_4 to TEMP_C_24 when the policy requires confirmation.",
+      "expected_action": {"kind": "SEQUENCE", "actions": [{"kind": "REQUEST_CONFIRM"}, {"kind": "CALL", "tool": "home.set_temperature", "ref": "REF_2", "arguments": {"room": "ROOM_4", "temperature_c": "TEMP_C_24"}}]},
+      "tool_args": [{"tool": "home.set_temperature", "arguments": {"room": "ROOM_4", "temperature_c": "TEMP_C_24"}}],
+      "event_sequence": [
+        {"kind": "PENDING", "ref": "REF_2", "relation": "only_after_explicit_user_confirmation_and_call_end"},
+        {"kind": "OK", "ref": "REF_2", "payload_tokens": ["ENUM_1"], "relation": "visible_after_final_obs_end"}
+      ],
+      "timing_relation": "No executor event or CALL is allowed before a positive confirmation turn.",
+      "expected_spoken_behavior": "Ask a concise confirmation, wait, then perform and confirm the approved change.",
+      "forbidden_behavior": ["Dispatch home.set_temperature before consent", "Treat silence as confirmation"],
+      "measurable_assertions": [
+        {"metric": "pre_confirmation_dispatch_count", "operator": "==", "expected": 0},
+        {"metric": "confirmation_prompt_count", "operator": "==", "expected": 1}
+      ]
+    },
+    {
+      "id": "ASV2-014",
+      "category": "permission_confirmation",
+      "user_intent": "Decline the confirmation request for ROOM_4 TEMP_C_24.",
+      "expected_action": {"kind": "REQUEST_CONFIRM"},
+      "tool_args": [],
+      "event_sequence": [],
+      "timing_relation": "A negative confirmation ends the proposal without an executor event.",
+      "expected_spoken_behavior": "Acknowledge the refusal and leave the home state unchanged.",
+      "forbidden_behavior": ["Dispatch a home call after denial", "Claim the temperature changed"],
+      "measurable_assertions": [
+        {"metric": "post_denial_dispatch_count", "operator": "==", "expected": 0},
+        {"metric": "home_change_claim_count", "operator": "==", "expected": 0}
+      ]
+    },
+    {
+      "id": "ASV2-015",
+      "category": "home",
+      "user_intent": "Set ROOM_1 to TEMP_C_19 but the executor rejects it with a permission error.",
+      "expected_action": {"kind": "CALL", "tool": "home.set_temperature", "ref": "REF_3", "arguments": {"room": "ROOM_1", "temperature_c": "TEMP_C_19"}},
+      "tool_args": [{"tool": "home.set_temperature", "arguments": {"room": "ROOM_1", "temperature_c": "TEMP_C_19"}}],
+      "event_sequence": [
+        {"kind": "PENDING", "ref": "REF_3", "relation": "available_at_call_end_plus_1"},
+        {"kind": "ERROR", "ref": "REF_3", "payload_tokens": ["ERR_PERMISSION"], "relation": "visible_after_final_obs_end"}
+      ],
+      "timing_relation": "ERROR is terminal and must be visible before the spoken failure explanation.",
+      "expected_spoken_behavior": "State that the setting could not be changed because permission was denied.",
+      "forbidden_behavior": ["Claim success", "Hide the error while silently retrying"],
+      "measurable_assertions": [
+        {"metric": "spoken_error_frame", "operator": ">=", "expected": "ERROR.visible_frame"},
+        {"metric": "success_claim_count", "operator": "==", "expected": 0}
+      ]
+    },
+    {
+      "id": "ASV2-016",
+      "category": "home",
+      "user_intent": "Set ROOM_6 to TEMP_C_22 when the home executor times out.",
+      "expected_action": {"kind": "CALL", "tool": "home.set_temperature", "ref": "REF_0", "arguments": {"room": "ROOM_6", "temperature_c": "TEMP_C_22"}},
+      "tool_args": [{"tool": "home.set_temperature", "arguments": {"room": "ROOM_6", "temperature_c": "TEMP_C_22"}}],
+      "event_sequence": [
+        {"kind": "PENDING", "ref": "REF_0", "relation": "available_at_call_end_plus_1"},
+        {"kind": "TIMEOUT", "ref": "REF_0", "relation": "visible_after_final_obs_end"}
+      ],
+      "timing_relation": "No success text is allowed during PENDING or after TIMEOUT.",
+      "expected_spoken_behavior": "Report that the change could not be confirmed and offer a retry.",
+      "forbidden_behavior": ["State the thermostat changed", "Reuse REF_0 before timeout visibility"],
+      "measurable_assertions": [
+        {"metric": "terminal_status", "operator": "==", "expected": "TIMEOUT"},
+        {"metric": "success_claim_count", "operator": "==", "expected": 0}
+      ]
+    },
+    {
+      "id": "ASV2-017",
+      "category": "sequential_calls",
+      "user_intent": "Check CITY_9 weather, then create a five-minute timer after the weather completes.",
+      "expected_action": {"kind": "SEQUENCE", "actions": [{"kind": "CALL", "tool": "weather.lookup", "ref": "REF_0", "arguments": {"city": "CITY_9"}}, {"kind": "CALL", "tool": "timer.create", "ref": "REF_0", "arguments": {"minutes": "MIN_5"}}]},
+      "tool_args": [{"tool": "weather.lookup", "arguments": {"city": "CITY_9"}}, {"tool": "timer.create", "arguments": {"minutes": "MIN_5"}}],
+      "event_sequence": [
+        {"kind": "OK", "ref": "REF_0", "payload_tokens": ["FORECAST_06", "TEMP_C_20"], "relation": "first_terminal_visible_before_second_call"},
+        {"kind": "OK", "ref": "REF_0", "payload_tokens": ["ENUM_0"], "relation": "second_terminal_visible_after_reuse"}
+      ],
+      "timing_relation": "REF_0 is reused only after the first terminal OBS_END visible_frame, not merely after scheduling.",
+      "expected_spoken_behavior": "Give weather first, then independently confirm the timer.",
+      "forbidden_behavior": ["Emit both result claims before their events", "Reuse REF_0 at first result injection start"],
+      "measurable_assertions": [
+        {"metric": "second_call_frame", "operator": ">=", "expected": "first_OK.visible_frame"},
+        {"metric": "ref_reuse_lease", "operator": ">", "expected": "first_lease"}
+      ]
+    },
+    {
+      "id": "ASV2-018",
+      "category": "sequential_calls",
+      "user_intent": "Create a two-minute timer, then set ROOM_0 to TEMP_C_20 after it completes.",
+      "expected_action": {"kind": "SEQUENCE", "actions": [{"kind": "CALL", "tool": "timer.create", "ref": "REF_1", "arguments": {"minutes": "MIN_2"}}, {"kind": "CALL", "tool": "home.set_temperature", "ref": "REF_2", "arguments": {"room": "ROOM_0", "temperature_c": "TEMP_C_20"}}]},
+      "tool_args": [{"tool": "timer.create", "arguments": {"minutes": "MIN_2"}}, {"tool": "home.set_temperature", "arguments": {"room": "ROOM_0", "temperature_c": "TEMP_C_20"}}],
+      "event_sequence": [
+        {"kind": "OK", "ref": "REF_1", "payload_tokens": ["ENUM_0"], "relation": "visible_before_second_user_goal_is_dispatched"},
+        {"kind": "OK", "ref": "REF_2", "payload_tokens": ["ENUM_1"], "relation": "visible_after_second_obs_end"}
+      ],
+      "timing_relation": "Distinct active refs preserve attribution across the sequential actions.",
+      "expected_spoken_behavior": "Confirm each completed operation in order without blending their results.",
+      "forbidden_behavior": ["Attribute ENUM_1 to the timer", "Use a result before its visible_frame"],
+      "measurable_assertions": [
+        {"metric": "distinct_active_refs", "operator": "==", "expected": ["REF_1", "REF_2"]},
+        {"metric": "result_attribution_errors", "operator": "==", "expected": 0}
+      ]
+    },
+    {
+      "id": "ASV2-019",
+      "category": "ref_safety",
+      "user_intent": "Reuse REF_3 for a new weather lookup only after a terminal timer event becomes visible.",
+      "expected_action": {"kind": "SEQUENCE", "actions": [{"kind": "CALL", "tool": "timer.create", "ref": "REF_3", "arguments": {"minutes": "MIN_1"}}, {"kind": "CALL", "tool": "weather.lookup", "ref": "REF_3", "arguments": {"city": "CITY_15"}}]},
+      "tool_args": [{"tool": "timer.create", "arguments": {"minutes": "MIN_1"}}, {"tool": "weather.lookup", "arguments": {"city": "CITY_15"}}],
+      "event_sequence": [
+        {"kind": "OK", "ref": "REF_3", "payload_tokens": ["ENUM_0"], "relation": "first_terminal_visible_before_reuse"},
+        {"kind": "OK", "ref": "REF_3", "payload_tokens": ["FORECAST_09", "TEMP_C_17"], "relation": "new_lease_only"}
+      ],
+      "timing_relation": "New CALL_END is permitted at or after the first visible_frame; it obtains a larger hidden lease.",
+      "expected_spoken_behavior": "Keep timer and weather explanations correctly separated despite the same visible REF token.",
+      "forbidden_behavior": ["Accept an old timer event for the new weather lease", "Reuse REF_3 before visibility"],
+      "measurable_assertions": [
+        {"metric": "new_lease_number", "operator": ">", "expected": "old_lease_number"},
+        {"metric": "reuse_frame", "operator": ">=", "expected": "first_OK.visible_frame"}
+      ]
+    },
+    {
+      "id": "ASV2-020",
+      "category": "ref_safety",
+      "user_intent": "Attempt a second call with REF_2 while the first result has been injected but is not yet visible.",
+      "expected_action": {"kind": "CALL", "tool": "timer.create", "ref": "REF_2", "arguments": {"minutes": "MIN_4"}},
+      "tool_args": [{"tool": "timer.create", "arguments": {"minutes": "MIN_4"}}],
+      "event_sequence": [
+        {"kind": "OK", "ref": "REF_2", "payload_tokens": ["ENUM_0"], "relation": "injected_before_visible_frame"},
+        {"kind": "ERROR", "ref": "REF_2", "payload_tokens": ["ERR_REF_BUSY"], "relation": "second_call_rejected_before_dispatch", "injected": false}
+      ],
+      "timing_relation": "The guard remains active through injected_end.frame and releases only at visible_frame.",
+      "expected_spoken_behavior": "Do not issue or describe the second operation before the ref becomes reusable.",
+      "forbidden_behavior": ["Compile a second CALL with active REF_2", "Release at injected_end instead of visible_frame"],
+      "measurable_assertions": [
+        {"metric": "pre_visible_reuse_dispatch_count", "operator": "==", "expected": 0},
+        {"metric": "guard_active_through_frame", "operator": "==", "expected": "first_OK.injected_end.frame"}
+      ]
+    },
+    {
+      "id": "ASV2-021",
+      "category": "safety",
+      "user_intent": "Receive two executor records with a duplicate event sequence number.",
+      "expected_action": null,
+      "tool_args": [],
+      "event_sequence": [
+        {"kind": "ERROR", "payload_tokens": ["ERR_SCHEMA"], "relation": "duplicate_event_seq_rejected_before_injection", "injected": false}
+      ],
+      "timing_relation": "FIFO ordering requires globally unique event_seq values.",
+      "expected_spoken_behavior": "Do not react to either malformed duplicate record as factual context.",
+      "forbidden_behavior": ["Overwrite an occupied micro-slot", "Produce a fabricated tool-result response"],
+      "measurable_assertions": [
+        {"metric": "scheduled_event_count", "operator": "==", "expected": 0},
+        {"metric": "scheduler_error", "operator": "==", "expected": "duplicate_event_seq"}
+      ]
+    },
+    {
+      "id": "ASV2-022",
+      "category": "safety",
+      "user_intent": "Receive an event with a matching ref but a forged issued_frame before the actual CALL_END.",
+      "expected_action": {"kind": "CALL", "tool": "timer.create", "ref": "REF_0", "arguments": {"minutes": "MIN_6"}},
+      "tool_args": [{"tool": "timer.create", "arguments": {"minutes": "MIN_6"}}],
+      "event_sequence": [
+        {"kind": "ERROR", "ref": "REF_0", "payload_tokens": ["ERR_SCHEMA"], "relation": "event_issued_frame_must_equal_authenticated_call_end_or_is_rejected", "injected": false}
+      ],
+      "timing_relation": "A matching UUID/lease alone is insufficient; issued_frame binds to the authenticated CALL_END frame.",
+      "expected_spoken_behavior": "Ignore the forged pre-call event and continue waiting for a legitimate result.",
+      "forbidden_behavior": ["Inject context before CALL_END plus one frame", "Release the ref from a forged event"],
+      "measurable_assertions": [
+        {"metric": "forged_event_injected_tokens", "operator": "==", "expected": 0},
+        {"metric": "ref_active_after_rejection", "operator": "==", "expected": true}
+      ]
+    },
+    {
+      "id": "ASV2-023",
+      "category": "safety",
+      "user_intent": "Receive a terminal event with the wrong hidden UUID or lease for REF_1.",
+      "expected_action": {"kind": "CALL", "tool": "weather.lookup", "ref": "REF_1", "arguments": {"city": "CITY_1"}},
+      "tool_args": [{"tool": "weather.lookup", "arguments": {"city": "CITY_1"}}],
+      "event_sequence": [
+        {"kind": "STALE", "ref": "REF_1", "relation": "uuid_or_lease_mismatch_rejected_before_injection", "injected": false}
+      ],
+      "timing_relation": "A terminal receipt can release only the exact active ref, UUID, lease, and scheduler OBS_END position.",
+      "expected_spoken_behavior": "Do not speak the mismatched result and retain the active request state.",
+      "forbidden_behavior": ["Release REF_1", "Use stale weather content"],
+      "measurable_assertions": [
+        {"metric": "stale_event_injected_tokens", "operator": "==", "expected": 0},
+        {"metric": "active_lease_unchanged", "operator": "==", "expected": true}
+      ]
+    },
+    {
+      "id": "ASV2-024",
+      "category": "safety",
+      "user_intent": "Request a timer with an out-of-schema symbolic argument CITY_2 instead of MIN_n.",
+      "expected_action": null,
+      "tool_args": [],
+      "event_sequence": [],
+      "timing_relation": "Compiler/parser rejects the malformed action before CALL_END dispatch.",
+      "expected_spoken_behavior": "Ask for a valid duration or state that the request needs clarification.",
+      "forbidden_behavior": ["Dispatch timer.create with CITY_2", "Serialize free-form JSON arguments"],
+      "measurable_assertions": [
+        {"metric": "schema_invalid_dispatch_count", "operator": "==", "expected": 0},
+        {"metric": "parser_error", "operator": "==", "expected": "argument_domain"}
+      ]
+    },
+    {
+      "id": "ASV2-025",
+      "category": "safety",
+      "user_intent": "Encounter a reserved action token ID in a generated packet.",
+      "expected_action": null,
+      "tool_args": [],
+      "event_sequence": [],
+      "timing_relation": "Reserved IDs are rejected by the action FSA and never dispatched.",
+      "expected_spoken_behavior": "Recover conversationally without claiming that an operation ran.",
+      "forbidden_behavior": ["Dispatch a reserved token", "Expose raw token IDs to the user"],
+      "measurable_assertions": [
+        {"metric": "reserved_packet_dispatch_count", "operator": "==", "expected": 0},
+        {"metric": "grammar_error", "operator": "==", "expected": "reserved_token"}
+      ]
+    },
+    {
+      "id": "ASV2-026",
+      "category": "barge_in",
+      "user_intent": "Ask for a timer, then begin speaking while the assistant is acknowledging the pending action.",
+      "expected_action": {"kind": "SEQUENCE", "actions": [{"kind": "CALL", "tool": "timer.create", "ref": "REF_2", "arguments": {"minutes": "MIN_8"}}, {"kind": "INTERRUPT"}]},
+      "tool_args": [{"tool": "timer.create", "arguments": {"minutes": "MIN_8"}}],
+      "event_sequence": [
+        {"kind": "PENDING", "ref": "REF_2", "relation": "available_at_call_end_plus_1"},
+        {"kind": "OK", "ref": "REF_2", "payload_tokens": ["ENUM_0"], "relation": "may_arrive_after_user_barge_in"}
+      ],
+      "timing_relation": "Interruption affects spoken output immediately but does not corrupt the queued executor lease.",
+      "expected_spoken_behavior": "Yield the floor to the user, retain the tool state, and resume only when appropriate.",
+      "forbidden_behavior": ["Talk over the barge-in", "Lose the pending call identity"],
+      "measurable_assertions": [
+        {"metric": "assistant_audio_after_barge_in", "operator": "<=", "expected": "1 frame"},
+        {"metric": "pending_lease_preserved", "operator": "==", "expected": true}
+      ]
+    },
+    {
+      "id": "ASV2-027",
+      "category": "result_during_acknowledgement",
+      "user_intent": "Ask to set ROOM_5 to TEMP_C_23 while the assistant says 'one moment'.",
+      "expected_action": {"kind": "CALL", "tool": "home.set_temperature", "ref": "REF_3", "arguments": {"room": "ROOM_5", "temperature_c": "TEMP_C_23"}},
+      "tool_args": [{"tool": "home.set_temperature", "arguments": {"room": "ROOM_5", "temperature_c": "TEMP_C_23"}}],
+      "event_sequence": [
+        {"kind": "PENDING", "ref": "REF_3", "relation": "available_at_call_end_plus_1"},
+        {"kind": "OK", "ref": "REF_3", "payload_tokens": ["ENUM_1"], "relation": "injected_while_acknowledgement_audio_is_active_then_visible_next_frame"}
+      ],
+      "timing_relation": "The action/result lane can update causally while the assistant audio stream continues; factual completion waits for visible_frame.",
+      "expected_spoken_behavior": "Finish or smoothly redirect the acknowledgement into a confirmed completion statement.",
+      "forbidden_behavior": ["Insert a fact before input shift visibility", "Reset the voice turn abruptly"],
+      "measurable_assertions": [
+        {"metric": "audio_turn_continuity", "operator": "==", "expected": true},
+        {"metric": "completion_claim_frame", "operator": ">=", "expected": "OK.visible_frame"}
+      ]
+    },
+    {
+      "id": "ASV2-028",
+      "category": "ordinary_duplex",
+      "user_intent": "Speak while the assistant is already explaining a non-tool topic.",
+      "expected_action": null,
+      "tool_args": [],
+      "event_sequence": [],
+      "timing_relation": "No typed executor lane is used; ordinary user/assistant audio overlap remains available.",
+      "expected_spoken_behavior": "Handle overlap naturally, yielding or continuing briefly according to the duplex turn signal.",
+      "forbidden_behavior": ["Disable user audio conditioning because no tool is active", "Turn the conversation into strict push-to-talk"],
+      "measurable_assertions": [
+        {"metric": "user_audio_lane_present", "operator": "==", "expected": true},
+        {"metric": "tool_dispatch_count", "operator": "==", "expected": 0}
+      ]
+    },
+    {
+      "id": "ASV2-029",
+      "category": "ordinary_duplex",
+      "user_intent": "Tell a story with pauses where a short backchannel is appropriate.",
+      "expected_action": {"kind": "BACKCHANNEL"},
+      "tool_args": [],
+      "event_sequence": [],
+      "timing_relation": "BACKCHANNEL is a one-token action with no executor observation.",
+      "expected_spoken_behavior": "Offer a brief natural acknowledgement without taking over the turn.",
+      "forbidden_behavior": ["Emit CALL_BEGIN", "Interrupt the speaker with a long answer"],
+      "measurable_assertions": [
+        {"metric": "action_packet_token_count", "operator": "==", "expected": 1},
+        {"metric": "environment_token_count", "operator": "==", "expected": 0}
+      ]
+    },
+    {
+      "id": "ASV2-030",
+      "category": "ordinary_duplex",
+      "user_intent": "Ask the assistant to pause, then resume ordinary conversation.",
+      "expected_action": {"kind": "PAUSE"},
+      "tool_args": [],
+      "event_sequence": [],
+      "timing_relation": "PAUSE is a one-token control action and does not reserve a REF or create an environment event.",
+      "expected_spoken_behavior": "Pause speech promptly and preserve conversational context for the later resume.",
+      "forbidden_behavior": ["Dispatch a tool", "Discard previous duplex context on pause"],
+      "measurable_assertions": [
+        {"metric": "pause_action_token_count", "operator": "==", "expected": 1},
+        {"metric": "context_after_resume", "operator": "==", "expected": "preserved"}
+      ]
+    }
+  ]
+}
